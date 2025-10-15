@@ -8,7 +8,7 @@ list.of.packages <- c("pacman")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 # if(length(new.packages)) install.packages(new.packages)
 
-p_load("gmodels", "ggplot2", "easypackages", "clusterSim", "PRROC", "rpart",  "dplyr", "pastecs", "catboost", "formula.tools", "dplyr", "pastecs",  "caret", "MXM", "e1071",  "xgboost", "randomForest", "kernlab", "mltools", "boot", "lubridate")
+p_load("gmodels", "ggplot2", "easypackages", "clusterSim", "PRROC", "rpart",  "dplyr", "pastecs", "formula.tools", "dplyr", "pastecs",  "caret", "MXM", "e1071",  "xgboost", "randomForest", "kernlab", "mltools", "boot", "lubridate")
 
 # let's compute time
 global_start_time <- Sys.time()

@@ -11,8 +11,21 @@ k <- 10
 cat(k, "-fold cross-validation\t Random Forests regression analysis\n", sep="")
 
 # Load the data
-# dataFile <- "../../clustering_internal_metrics/data/real_datasets/journal_pone_0161784_preterm_sepsis_edited_dataset_IMPUTED.csv"
-dataFile <- "../data/sepsis_severity_dataset_col_norm_edited_target-SOFA-score.csv"
+# dataFile <- "../data/CKD_CVD_journal.pone.0199920.s002_EDITED_IMPUTED_v2.csv"
+# response_var <- "TimeToEventMonths"
+
+# dataFile <- "../data/sepsis_severity_dataset_col_norm_edited_target-SOFA-score.csv"
+# response_var <- "SOFA.score"  # Replace with your response variable name
+
+# dataFile <- "../data/EHRs_heart_failure_S1Data_EDITED_v3.csv"
+# response_var <- "TIME_DAYS"  # Replace with your response variable name
+
+# dataFile <- "../data/ObesityDataSet_raw_and_data_sinthetic_EDITED.csv"
+# response_var <- "obesity_class"  # Replace with your response variable name
+
+# dataFile <- "../data/journal.pone.0216416_Takashi2019_diabetes_type1_dataset_preprocessed.csv"
+# response_var <- "duration.of.diabetes"
+
 data <- read.csv(dataFile, header=T)
 cat(dataFile,"\n")
 
@@ -20,7 +33,6 @@ data <- data[sample(nrow(data)), ]
 
 # Ensure the target variable is a factor
 # data$SOFA.score <- as.factor(data$"SOFA.score")
-response_var <- "SOFA.score"  # Replace with your response variable name
 predictor_vars <- setdiff(names(data), response_var)
 
 
@@ -90,6 +102,6 @@ cat(" in the [", dec_two(min(r_squared_values_V3)), ",", dec_two(max(r_squared_v
 
 cat("average absolute percentage difference between iteration target and original target = ", dec_two(mean(target_differences_perc_means)), "%\n", sep="")
 
-# r_squared_values_V3 %>% summary() %>% print()
+cat(k, "-fold cross-validation\t Random Forests regression analysis\n", sep="")
 
 computeExecutionTime()
