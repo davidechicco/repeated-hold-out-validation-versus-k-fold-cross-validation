@@ -6,6 +6,7 @@ set.seed(123)  # For reproducibility
 
 source("utils.r")
 
+VERBOSE <- FALSE
 
 # Load the data
 dataFile <- "../data/CKD_CVD_journal.pone.0199920.s002_EDITED_IMPUTED_v2.csv"
@@ -45,61 +46,71 @@ cat(num_iterations, "-times repeated hold-out validation\t Random Forests regres
 
 cat("global target mean ", mean(data[[response_var]]),  " +- ", sd(data[[response_var]]), "\n", sep="")
 
+mean_differences_between_global_targets_and_fold_targets <- c()
 
-for (i in 1:num_iterations) {
+global_interations <- 20
+cat("global_interations = ", global_interations, "\n", sep="")
 
-  shuffled_df <- data[sample(nrow(data)), ]
-  data <- shuffled_df
+for(a in seq(1:global_interations)) {
 
-  # Split data into training and testing sets
-  train_indices <- sample(1:nrow(data), size = floor(train_fraction * nrow(data)))
-  train_data <- data[train_indices, ]
-  test_data <- data[-train_indices, ]
+    for (i in 1:num_iterations) {
 
-  # Fit Random Forest model
-  rf_model <- randomForest(as.formula(paste(response_var, paste(predictor_vars, collapse = "+"), sep = " ~ ")),
-                           data = train_data)
+      shuffled_df <- data[sample(nrow(data)), ]
+      data <- shuffled_df
 
-  # Make predictions on the test set
-  predictions <- predict(rf_model, newdata = test_data)
+      # Split data into training and testing sets
+      train_indices <- sample(1:nrow(data), size = floor(train_fraction * nrow(data)))
+      train_data <- data[train_indices, ]
+      test_data <- data[-train_indices, ]
 
-  # Calculate R-squared
-  actuals <- test_data[[response_var]]
+      # Fit Random Forest model
+      rf_model <- randomForest(as.formula(paste(response_var, paste(predictor_vars, collapse = "+"), sep = " ~ ")),
+                              data = train_data)
 
-  cat("i = ", i, ") target mean ", mean(actuals),  " +- ", sd(actuals), "\t", sep="")
+      # Make predictions on the test set
+      predictions <- predict(rf_model, newdata = test_data)
 
-  cat(" mean diff with original = ")
-  thisDiff <- abs(computeDiffPerc(mean(data[[response_var]]),mean(actuals)))
-  cat(dec_three(thisDiff), "%\n", sep="")
+      # Calculate R-squared
+      actuals <- test_data[[response_var]]
 
-  r_squared <- 1 - (sum((actuals - predictions) ^ 2) / sum((actuals - mean(actuals)) ^ 2))
+      if(VERBOSE) cat("a=", a, ", i=", i, ") target mean ", mean(actuals),  " +- ", sd(actuals), "\t", sep="")
 
-  # cat("(i=", i,") R-squared = ", r_squared, "\n", sep="" )
-  r_squared_V2 <- cor(actuals, predictions)^2
-  # cat("(i=", i,") R-squared V2:", r_squared_V2, "\n", sep="")
-  r_squared_V3 <- R2_Score(predictions, actuals)
+      if(VERBOSE) cat(" mean diff with original = ")
+      thisDiff <- abs(computeDiffPerc(mean(data[[response_var]]),mean(actuals)))
+      if(VERBOSE) cat(dec_three(thisDiff), "%\n", sep="")
 
-  # Store the R-squared value
-  r_squared_values[i] <- r_squared
-  r_squared_values_V2[i] <- r_squared_V2
-  r_squared_values_V3[i] <- r_squared_V3
-  target_differences_perc_means[i] <- thisDiff
+      r_squared <- 1 - (sum((actuals - predictions) ^ 2) / sum((actuals - mean(actuals)) ^ 2))
 
+      # cat("(i=", i,") R-squared = ", r_squared, "\n", sep="" )
+      r_squared_V2 <- cor(actuals, predictions)^2
+      # cat("(i=", i,") R-squared V2:", r_squared_V2, "\n", sep="")
+      r_squared_V3 <- R2_Score(predictions, actuals)
+
+      # Store the R-squared value
+      r_squared_values[i] <- r_squared
+      r_squared_values_V2[i] <- r_squared_V2
+      r_squared_values_V3[i] <- r_squared_V3
+      target_differences_perc_means[i] <- thisDiff
+
+    }
+
+    # Calculate average R-squared across all folds
+    # average_r_squared <- mean(r_squared_values)
+    # Print the average R-squared
+    # cat("Average R-squared V1 over", k, "folds:", average_r_squared, "\n")
+    # average_r_squared_V2 <- mean(r_squared_values_V2)
+    # cat("Average R-squared V2 over", k, "folds:", average_r_squared_V2, "\n")
+    average_r_squared_V3 <- mean(r_squared_values_V3)
+    sd_r_squared_V3 <- sd(r_squared_values_V3)
+    if(VERBOSE) cat("Average R-squared V3 over ", num_iterations, " iterations: ", average_r_squared_V3, " +- ", sd_r_squared_V3, "  ", sep="")
+    if(VERBOSE) cat(" in the [", dec_three(min(r_squared_values_V3)), ",", dec_three(max(r_squared_values_V3)), "] interval\n", sep="")
+
+    cat("(a=", a, ") absolute average absolute percentage difference between iteration target and original target = ", dec_three(mean(target_differences_perc_means)), "% ± ", dec_three(sd(target_differences_perc_means)), "%\n", sep="")
+
+    mean_differences_between_global_targets_and_fold_targets[a] <- mean(target_differences_perc_means)
 }
 
-# Calculate average R-squared across all folds
-# average_r_squared <- mean(r_squared_values)
-# Print the average R-squared
-# cat("Average R-squared V1 over", k, "folds:", average_r_squared, "\n")
-# average_r_squared_V2 <- mean(r_squared_values_V2)
-# cat("Average R-squared V2 over", k, "folds:", average_r_squared_V2, "\n")
-average_r_squared_V3 <- mean(r_squared_values_V3)
-sd_r_squared_V3 <- sd(r_squared_values_V3)
-cat("Average R-squared V3 over ", num_iterations, " iterations: ", average_r_squared_V3, " +- ", sd_r_squared_V3, "  ", sep="")
-cat(" in the [", dec_three(min(r_squared_values_V3)), ",", dec_three(max(r_squared_values_V3)), "] interval\n", sep="")
-
-cat("absolute average absolute percentage difference between iteration target and original target = ", dec_three(mean(target_differences_perc_means)), "% ± ", dec_three(sd(target_differences_perc_means)), "%\n", sep="")
-
+cat("\nglobal absolute average absolute percentage difference between iteration target and original target = ", dec_three(mean(mean_differences_between_global_targets_and_fold_targets)), "% ± ", dec_three(sd(mean_differences_between_global_targets_and_fold_targets)), "%\n", sep="")
 
 cat(num_iterations, "-times repeated hold-out validation\t Random Forests regression analysis\n", sep="")
 

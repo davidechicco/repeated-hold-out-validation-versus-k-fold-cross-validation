@@ -89,8 +89,9 @@ computeExecutionTime <- function(){
 
   thisEndTime <- Sys.time()
   totalTime <- thisEndTime - global_start_time
-  cat("\nTotal execution time: ", (totalTime)[[1]], " seconds\n", sep="")
-  
+  td <-  as.period(difftime(Sys.time(), global_start_time)) #seconds_to_period(totalTime)
+  cat("\nTotal execution time: ", period_to_seconds(td), " seconds\n", sep="")
+
   td <-  as.period(difftime(Sys.time(), global_start_time)) #seconds_to_period(totalTime)
   cat(sprintf('%d days, %02d hours, %02d minutes, %02.2f seconds\n\n', day(td), td@hour, minute(td), td$.Data))
 }
