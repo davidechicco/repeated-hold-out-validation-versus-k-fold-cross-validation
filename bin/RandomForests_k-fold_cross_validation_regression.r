@@ -1,8 +1,7 @@
 # Load necessary libraries
-
 library("pacman")
 p_load("randomForest", "caret", "MLmetrics")
-# set.seed(11)  # For reproducibility
+set.seed(123)  # For reproducibility
 
 source("utils.r")
 
@@ -11,8 +10,8 @@ k <- 10
 cat(k, "-fold cross-validation\t Random Forests regression analysis\n", sep="")
 
 # Load the data
-# dataFile <- "../data/CKD_CVD_journal.pone.0199920.s002_EDITED_IMPUTED_v2.csv"
-# response_var <- "TimeToEventMonths"
+dataFile <- "../data/CKD_CVD_journal.pone.0199920.s002_EDITED_IMPUTED_v2.csv"
+response_var <- "TimeToEventMonths"
 
 # dataFile <- "../data/sepsis_severity_dataset_col_norm_edited_target-SOFA-score.csv"
 # response_var <- "SOFA.score"  # Replace with your response variable name
@@ -39,7 +38,6 @@ predictor_vars <- setdiff(names(data), response_var)
 cat("global target mean ", mean(data[[response_var]]),  " +- ", sd(data[[response_var]]), "\n", sep="")
 
 # Set parameters for repeated hold-out validation
-set.seed(123)  # For reproducibility
 train_fraction <- 1-1/k
 cat("k = ", k,  " somehow like training set = ", dec_two(100*train_fraction), "%\n", sep="")
 r_squared_values <- numeric(k)
@@ -75,7 +73,7 @@ for (i in 1:k) {
   cat("target mean ", mean(actuals),  " +- ", sd(actuals), " ", sep="")
 
   cat(" mean diff with original = ")
-  thisDiff <- computeDiffPerc(mean(data[[response_var]]),mean(actuals))
+  thisDiff <- abs(computeDiffPerc(mean(data[[response_var]]),mean(actuals)))
   cat(dec_two(thisDiff), "%\n", sep="")
 
 
@@ -83,7 +81,7 @@ for (i in 1:k) {
   r_squared_values[i] <- r_squared
   r_squared_values_V2[i] <- r_squared_V2
   r_squared_values_V3[i] <- r_squared_V3
-  target_differences_perc_means[i] <- abs(thisDiff)
+  target_differences_perc_means[i] <- thisDiff
 
   # cat("r_squared = ", r_squared, "\t r_squared_V2 =  ", r_squared_V2, "\n", sep="")
 
@@ -100,7 +98,7 @@ sd_r_squared_V3 <- sd(r_squared_values_V3)
 cat("Average R-squared V3 over ",  k, " folds: ", average_r_squared_V3, " +- ", sd_r_squared_V3, "  ", sep="")
 cat(" in the [", dec_two(min(r_squared_values_V3)), ",", dec_two(max(r_squared_values_V3)), "] interval\n", sep="")
 
-cat("average absolute percentage difference between iteration target and original target = ", dec_two(mean(target_differences_perc_means)), "%\n", sep="")
+cat("absolute average absolute percentage difference between iteration target and original target = ", dec_three(mean(target_differences_perc_means)), "% ± ", dec_three(sd(target_differences_perc_means)), "%\n", sep="")
 
 cat(k, "-fold cross-validation\t Random Forests regression analysis\n", sep="")
 
