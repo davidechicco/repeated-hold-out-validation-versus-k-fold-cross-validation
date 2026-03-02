@@ -1,6 +1,6 @@
 # Load necessary libraries
 library("pacman")
-p_load("randomForest", "caret", "MLmetrics")
+p_load("randomForest", "caret", "MLmetrics", "dtw")
 set.seed(123)  # For reproducibility
 
 source("utils.r")
@@ -12,8 +12,8 @@ VERBOSE <- FALSE
 cat(k, "-fold cross-validation\t Random Forests regression analysis\n", sep="")
 
 # Load the data
-dataFile <- "../data/CKD_CVD_journal.pone.0199920.s002_EDITED_IMPUTED_v2.csv"
-response_var <- "TimeToEventMonths"
+# dataFile <- "../data/CKD_CVD_journal.pone.0199920.s002_EDITED_IMPUTED_v2.csv"
+# response_var <- "TimeToEventMonths"
 
 # dataFile <- "../data/sepsis_severity_dataset_col_norm_edited_target-SOFA-score.csv"
 # response_var <- "SOFA.score"  # Replace with your response variable name
@@ -21,14 +21,16 @@ response_var <- "TimeToEventMonths"
 # dataFile <- "../data/EHRs_heart_failure_S1Data_EDITED_v3.csv"
 # response_var <- "TIME_DAYS"  # Replace with your response variable name
 
-# dataFile <- "../data/ObesityDataSet_raw_and_data_sinthetic_EDITED.csv"
-# response_var <- "obesity_class"  # Replace with your response variable name
+dataFile <- "../data/ObesityDataSet_raw_and_data_sinthetic_EDITED.csv"
+response_var <- "obesity_class"  # Replace with your response variable name
 
 # dataFile <- "../data/journal.pone.0216416_Takashi2019_diabetes_type1_dataset_preprocessed.csv"
 # response_var <- "duration.of.diabetes"
 
 data <- read.csv(dataFile, header=T)
 cat(dataFile,"\n")
+
+data %>% dim() %>% print()
 
 data <- data[sample(nrow(data)), ]
 
@@ -40,14 +42,20 @@ cat("global target mean ", mean(data[[response_var]]),  " +- ", sd(data[[respons
 
 mean_differences_between_global_targets_and_fold_targets <- c()
 
-global_interations <- 20
+global_interations <- 10
 cat("global_interations = ", global_interations, "\n", sep="")
+
+dtw_mean_similarities <- 0
+interp_mean_similarities <- 0
 
 for(a in seq(1:global_interations)) {
 
+    dtw_similarities <- c()
+    interp_similarities <- c()
+
     # Set parameters for repeated hold-out validation
     train_fraction <- 1-1/k
-    if(VERBOSE) cat("k = ", k,  " somehow like training set = ", dec_two(100*train_fraction), "%\n", sep="")
+    if(VERBOSE) cat("k = ", k,  " somehow like training set = ", dec_five(100*train_fraction), "%\n", sep="")
     r_squared_values <- numeric(k)
     r_squared_values_V2 <- numeric(k)
     r_squared_values_V3 <- numeric(k)
@@ -82,14 +90,25 @@ for(a in seq(1:global_interations)) {
 
       if(VERBOSE) cat(" mean diff with original = ")
       thisDiff <- abs(computeDiffPerc(mean(data[[response_var]]),mean(actuals)))
-      if(VERBOSE) cat(dec_two(thisDiff), "%\n", sep="")
+      if(VERBOSE) cat(dec_five(thisDiff), "%\n", sep="")
 
+      dtw_alignment <- dtw(data[[response_var]], actuals)
+      dtw_similarity <- 1 / (1 + dtw_alignment$"distance")  # Convert distance to similarity
+      # DTW similarity (common transforms): values between 0 (very dissimilar) and 1 (identical)
+
+      # Interpolate y to length of x
+      y_interp <- approx(x = seq_along(actuals), y = actuals, xout = seq(1, length(actuals), length.out = length(data[[response_var]])))$"y"
+
+      # Compute correlation
+      interp_similarity <- cor(data[[response_var]], y_interp)
 
       # Store the R-squared value
       r_squared_values[i] <- r_squared
       r_squared_values_V2[i] <- r_squared_V2
       r_squared_values_V3[i] <- r_squared_V3
       target_differences_perc_means[i] <- thisDiff
+      dtw_similarities[i] <- dtw_similarity
+      interp_similarities[i] <- interp_similarity
 
       # cat("r_squared = ", r_squared, "\t r_squared_V2 =  ", r_squared_V2, "\n", sep="")
 
@@ -104,15 +123,22 @@ for(a in seq(1:global_interations)) {
     average_r_squared_V3 <- mean(r_squared_values_V3)
     sd_r_squared_V3 <- sd(r_squared_values_V3)
     if(VERBOSE) cat("Average R-squared V3 over ",  k, " folds: ", average_r_squared_V3, " +- ", sd_r_squared_V3, "  ", sep="")
-    if(VERBOSE) cat(" in the [", dec_two(min(r_squared_values_V3)), ",", dec_two(max(r_squared_values_V3)), "] interval\n", sep="")
+    if(VERBOSE) cat(" in the [", dec_five(min(r_squared_values_V3)), ",", dec_five(max(r_squared_values_V3)), "] interval\n", sep="")
 
-    cat("(a=", a, ") absolute average absolute percentage difference between iteration target and original target = ", dec_three(mean(target_differences_perc_means)), "% ± ", dec_three(sd(target_differences_perc_means)), "%\n", sep="")
+    # cat("(a=", a, ") absolute average absolute percentage difference between iteration target and original target = ", dec_three(mean(target_differences_perc_means)), "% ± ", dec_three(sd(target_differences_perc_means)), "%\n", sep="")
+    # cat("(a=", a, ") mean DTW similarity between fold targets and global targets = ", dec_five(mean(dtw_similarities)), " ± ", dec_five(sd(dtw_similarities)), "\n", sep="")
+    # cat("(a=", a, ") mean interpolation similarity between fold targets and global targets = ", dec_five(mean(interp_similarities)), " ± ", dec_five(sd(interp_similarities)), "\n", sep="")
 
     mean_differences_between_global_targets_and_fold_targets[a] <- mean(target_differences_perc_means)
+    dtw_mean_similarities[a] <- mean(dtw_similarities)
+    interp_mean_similarities[a] <- mean(interp_similarities)
 }
 
 
 cat("\nglobal absolute average absolute percentage difference between iteration target and original target = ", dec_three(mean(mean_differences_between_global_targets_and_fold_targets)), "% ± ", dec_three(sd(mean_differences_between_global_targets_and_fold_targets)), "%\n", sep="")
+# cat("\nglobal DTW similarities between iteration target and original target = ", dec_five(mean(dtw_mean_similarities)), " ± ", dec_five(sd(dtw_mean_similarities)), "\n", sep="")
+cat("\nglobal interpolated similarities between iteration target and original target = ", dec_five(mean(interp_mean_similarities)), " ± ", dec_five(sd(interp_mean_similarities)), "\n", sep="")
+
 
 cat(k, "-fold cross-validation\t Random Forests regression analysis\n", sep="")
 

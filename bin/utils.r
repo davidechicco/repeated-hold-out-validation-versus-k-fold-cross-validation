@@ -151,7 +151,12 @@ removeDot <- function (thisString)
 }
 
 
-# function that prints tgree decimals of a number
+# function that prints five decimals of a number
+dec_five <- function(x) {
+  return (format(round(x, 5), nsmall = 5));
+}
+
+# function that prints three decimals of a number
 dec_three <- function(x) {
   return (format(round(x, 3), nsmall = 3));
 }
