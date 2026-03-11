@@ -1,8 +1,15 @@
-# Load necessary libraries
+setwd(".")
+options(stringsAsFactors = FALSE)
+cat("\014")
+set.seed(123)
+options(repos = list(CRAN="http://cran.rstudio.com/"))
+
+list.of.packages <- c("pacman")
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
 
 library("pacman")
-p_load("randomForest", "caret", "MLmetrics", "dtw")
-set.seed(123)  # For reproducibility
+p_load("randomForest", "caret", "MLmetrics", "dtw", "crayon")
 
 source("utils.r")
 
@@ -11,23 +18,42 @@ VERBOSE <- FALSE
 cat(" =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  = \n")
 
 
-rep_holdout_global_interations <- 5000
+# rep_holdout_global_interations <- 5000
+
+args <- commandArgs(trailingOnly = TRUE)  # get only the user-supplied arguments
+
+if (length(args) < 2) {
+  stop("Please provide two arguments")
+}
+
+rep_holdout_global_interations <- args[1]
+dataset_name <- args[2]
+
+cat("argument 1, rep_holdout_global_interations:", rep_holdout_global_interations, "\n")
+cat("argument 2, dataset:", dataset_name, "\n")
 
 # Load the data
-# dataFile <- "../data/CKD_CVD_journal.pone.0199920.s002_EDITED_IMPUTED_v2.csv"
-# response_var <- "TimeToEventMonths"
 
-dataFile <- "../data/sepsis_severity_dataset_col_norm_edited_target-SOFA-score.csv"
-response_var <- "SOFA.score"  # Replace with your response variable name
+if(dataset_name == "chronic_kidney_disease") {
+  dataFile <- "../data/CKD_CVD_journal.pone.0199920.s002_EDITED_IMPUTED_v2.csv"
+  response_var <- "TimeToEventMonths"
+} else if(dataset_name == "sepsis") {
+  dataFile <- "../data/sepsis_severity_dataset_col_norm_edited_target-SOFA-score.csv"
+  response_var <- "SOFA.score"  # Replace with your response variable name
+} else if(dataset_name == "heart_failure") {
+  dataFile <- "../data/EHRs_heart_failure_S1Data_EDITED_v3.csv"
+  response_var <- "TIME_DAYS"  # Replace with your response variable name
+} else if(dataset_name == "obesity") {
+  dataFile <- "../data/ObesityDataSet_raw_and_data_sinthetic_EDITED.csv"
+  response_var <- "obesity_class"  # Replace with your response variable name
+} else if(dataset_name == "diabetes_type_one") {
+  dataFile <- "../data/journal.pone.0216416_Takashi2019_diabetes_type1_dataset_preprocessed.csv"
+  response_var <- "duration.of.diabetes"
+} else {
+  cat("Error: the dataset chosen should be one among chronic_kidney_disease, sepsis, heart_failure, obesity, diabetes_type_one. The program stops here\n")
+  quit(save = "no", status = 0)
+}
 
-# dataFile <- "../data/EHRs_heart_failure_S1Data_EDITED_v3.csv"
-# response_var <- "TIME_DAYS"  # Replace with your response variable name
-
-# dataFile <- "../data/ObesityDataSet_raw_and_data_sinthetic_EDITED.csv"
-# response_var <- "obesity_class"  # Replace with your response variable name
-
-# dataFile <- "../data/journal.pone.0216416_Takashi2019_diabetes_type1_dataset_preprocessed.csv"
-# response_var <- "duration.of.diabetes"
 
 data <- read.csv(dataFile, header=T)
 cat(dataFile,"\n")
@@ -242,34 +268,34 @@ cat(k, "-fold cross-validation\t Random Forests regression analysis\n", sep="")
 cat(" =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  = \n")
 
 
-cat("\n[mean] repeated holdout ", dec_five(mean(rep_holdout_mean_differences_between_global_targets_and_fold_targets)), "% > ", dec_five(mean(crossval_mean_differences_between_global_targets_and_fold_targets)), "%  cross validation? ↑↑↑ ", sep="")
+cat("\n[mean of the means] repeated holdout ", dec_five(mean(rep_holdout_mean_differences_between_global_targets_and_fold_targets)), "% > ", dec_five(mean(crossval_mean_differences_between_global_targets_and_fold_targets)), "%  cross validation? ↑↑↑ ", sep="")
 if(mean(rep_holdout_mean_differences_between_global_targets_and_fold_targets) > mean(crossval_mean_differences_between_global_targets_and_fold_targets)) {
-  cat("TRUE, repeated holdout wins ")
-} else cat("FALSE, cross-validation wins ")
+  cat("TRUE, repeated holdout wins ", green("\u2714"), " ", sep="")
+} else cat("FALSE, cross-validation wins ", red("\u2716"), " ", sep="")
 cat("diff = ", dec_two(computeDiffPerc(mean(rep_holdout_mean_differences_between_global_targets_and_fold_targets),mean(crossval_mean_differences_between_global_targets_and_fold_targets))), "%", sep="")
 
-cat("\n[DTW] repeated holdout ", dec_five(mean(rep_holdout_dtw_mean_similarities)), " < ", dec_five(mean(crossval_dtw_mean_similarities)), " cross validation? ↓↓↓ ", sep="")
+cat("\n[DTW comparison] repeated holdout ", dec_five(mean(rep_holdout_dtw_mean_similarities)), " < ", dec_five(mean(crossval_dtw_mean_similarities)), " cross validation? ↓↓↓ ", sep="")
 if(mean(rep_holdout_dtw_mean_similarities) > mean(crossval_dtw_mean_similarities)) {
-  cat("TRUE, repeated holdout wins ")
-} else cat("FALSE, cross-validation wins ")
+  cat("TRUE, repeated holdout wins ", green("\u2714"), " ", sep="")
+} else cat("FALSE, cross-validation wins ", red("\u2716"), " ", sep="")
 cat("diff = ", dec_two(computeDiffPerc(mean(rep_holdout_dtw_mean_similarities),mean(crossval_dtw_mean_similarities))), "%", sep="")
 
-cat("\n[Pearson crossval interpolation] repeated holdout ", dec_five(mean(rep_holdout_interp_mean_similarities_Pearson)), " > ", dec_five(mean(crossval_interp_mean_similarities_Pearson)), " cross validation? ↑↑↑ ", sep="")
+cat("\n[Pearson interpolation] repeated holdout ", dec_five(mean(rep_holdout_interp_mean_similarities_Pearson)), " > ", dec_five(mean(crossval_interp_mean_similarities_Pearson)), " cross validation? ↑↑↑ ", sep="")
 if(mean(rep_holdout_interp_mean_similarities_Pearson) > mean(crossval_interp_mean_similarities_Pearson)) {
-  cat("TRUE, repeated holdout wins ")
-} else cat("FALSE, cross-validation wins ")
+  cat("TRUE, repeated holdout wins ", green("\u2714"), " ", sep="")
+} else cat("FALSE, cross-validation wins ", red("\u2716"), " ", sep="")
 cat("diff = ", dec_two(computeDiffPerc(mean(rep_holdout_interp_mean_similarities_Pearson),mean(crossval_interp_mean_similarities_Pearson))), "%", sep="")
 
-cat("\n[Kendall crossval interpolation] repeated holdout ", dec_five(mean(rep_holdout_interp_mean_similarities_Kendall)), " > ", dec_five(mean(crossval_interp_mean_similarities_Kendall)), " cross validation? ↑↑↑ ", sep="")
+cat("\n[Kendall interpolation] repeated holdout ", dec_five(mean(rep_holdout_interp_mean_similarities_Kendall)), " > ", dec_five(mean(crossval_interp_mean_similarities_Kendall)), " cross validation? ↑↑↑ ", sep="")
 if(mean(rep_holdout_interp_mean_similarities_Kendall) > mean(crossval_interp_mean_similarities_Kendall)) {
-  cat("TRUE, repeated holdout wins ")
-} else cat("FALSE, cross-validation wins ")
+  cat("TRUE, repeated holdout wins ", green("\u2714"), " ", sep="")
+} else cat("FALSE, cross-validation wins ", red("\u2716"), " ", sep="")
 cat("diff = ", dec_two(computeDiffPerc(mean(rep_holdout_interp_mean_similarities_Kendall),mean(crossval_interp_mean_similarities_Kendall))), "%", sep="")
 
-cat("\n[Spearman crossval interpolation] repeated holdout ", dec_five(mean(rep_holdout_interp_mean_similarities_Spearman)), " > ", dec_five(mean(crossval_interp_mean_similarities_Spearman)), " cross validation? ↑↑↑ ", sep="")
+cat("\n[Spearman interpolation] repeated holdout ", dec_five(mean(rep_holdout_interp_mean_similarities_Spearman)), " > ", dec_five(mean(crossval_interp_mean_similarities_Spearman)), " cross validation? ↑↑↑ ", sep="")
 if(mean(rep_holdout_interp_mean_similarities_Spearman) > mean(crossval_interp_mean_similarities_Spearman)) {
-  cat("TRUE, repeated holdout wins ")
-} else cat("FALSE, cross-validation wins ")
+  cat("TRUE, repeated holdout wins ", green("\u2714"), " ", sep="")
+} else cat("FALSE, cross-validation wins ", red("\u2716"), " ", sep="")
 cat("diff = ", dec_two(computeDiffPerc(mean(rep_holdout_interp_mean_similarities_Spearman),mean(crossval_interp_mean_similarities_Spearman))), "%", sep="")
 
 cat("\n")
