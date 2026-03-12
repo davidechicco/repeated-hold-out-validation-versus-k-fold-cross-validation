@@ -22,18 +22,20 @@ cat(" =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  = 
 
 args <- commandArgs(trailingOnly = TRUE)  # get only the user-supplied arguments
 
-if (length(args) < 2) {
-  stop("Please provide two arguments")
+if (length(args) < 3) {
+  stop("Please provide three arguments")
 }
 
 rep_holdout_global_interations <- args[1]
 dataset_name <- args[2]
+k <- as.numeric(args[3])
 
 cat("argument 1, rep_holdout_global_interations:", rep_holdout_global_interations, "\n")
 cat("argument 2, dataset:", dataset_name, "\n")
+cat("argument 3, k:", k, "\n")
+
 
 # Load the data
-
 if(dataset_name == "chronic_kidney_disease") {
   dataFile <- "../data/CKD_CVD_journal.pone.0199920.s002_EDITED_IMPUTED_v2.csv"
   response_var <- "TimeToEventMonths"
@@ -54,13 +56,10 @@ if(dataset_name == "chronic_kidney_disease") {
   quit(save = "no", status = 0)
 }
 
-
 data <- read.csv(dataFile, header=T)
 cat(dataFile,"\n")
 
 data %>% dim() %>% print()
-
-
 data <- data[sample(nrow(data)), ]
 
 # Ensure the target variable is a factor
@@ -69,11 +68,10 @@ predictor_vars <- setdiff(names(data), response_var)
 
 # Set parameters for repeated hold-out validation
 num_iterations <- 10
-train_fraction <- 0.9
+
+train_fraction <- 1-(1/k)
+
 cat("training set = ", dec_five(100*train_fraction), "%\n", sep="")
-r_squared_values <- numeric(num_iterations)
-r_squared_values_V2 <- numeric(num_iterations)
-r_squared_values_V3 <- numeric(num_iterations)
 rep_holdout_target_differences_perc_means <- numeric(num_iterations)
 
 cat(num_iterations, "-times repeated hold-out validation\t Random Forests regression analysis\n", sep="")
@@ -165,7 +163,6 @@ cat("[Spearman rep_holdout_interpolation] global rep_holdout_interpolated simila
 cat(num_iterations, "-times repeated hold-out validation\t Random Forests regression analysis\n", sep="")
 cat(" =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  = \n")
 
-k <- 10
 
 crossval_mean_differences_between_global_targets_and_fold_targets <- c()
 
@@ -188,13 +185,11 @@ for(a in seq(1:crossval_global_interations)) {
     # Set parameters for repeated hold-out validation
     train_fraction <- 1-1/k
     if(VERBOSE) cat("k = ", k,  " somehow like training set = ", dec_five(100*train_fraction), "%\n", sep="")
-    r_squared_values <- numeric(k)
-    r_squared_values_V2 <- numeric(k)
-    r_squared_values_V3 <- numeric(k)
+
 
     crossval_target_differences_perc_means <- numeric(k)
 
-    folds <- sample(1:k, nrow(data), replace = TRUE)
+    folds <- sample(rep(1:k, length.out = nrow(data)))
 
     # Perform k-fold cross-validation
     for (i in 1:k) {
@@ -204,8 +199,11 @@ for(a in seq(1:crossval_global_interations)) {
 
       actuals <- test_data[[response_var]]
 
-      if(VERBOSE) cat("a = ", a, ",i=", i, " of ", k, " ", sep="")
-      if(VERBOSE) cat("target mean ", mean(actuals),  " ± ", sd(actuals), " ", sep="")
+      if(VERBOSE) cat("[k=", k, ",a=", a, ",i=", i, " of ", k, "] ", sep="")
+
+      if(VERBOSE) cat("#rows of this training set = ", nrow(train_data), " ", sep="")
+      if(VERBOSE) cat("#rows of this test set = ", nrow(test_data), "\n", sep="")
+      cat("target mean ", mean(actuals),  " ± ", sd(actuals), " ", sep="")
 
       if(VERBOSE) cat(" mean diff with original = ")
       thisDiff <- abs(computeDiffPerc(mean(data[[response_var]]),mean(actuals)))
