@@ -10,11 +10,11 @@ current_date_and_time=$(date +"%Y-%m-%d %H:%M:%S" | sed 's/ /_h/; s/:/m/; s/:/s/
 date=$(date +"%Y-%m-%d")
 
 # Define the list as an array
-datasets=("chronic_kidney_disease" "sepsis" "heart_failure" "obesity" "diabetes_type_one")
+datasets=("chronic_kidney_disease" "diabetes_type_one" "heart_failure" "obesity" "sepsis")
 number_of_global_interations="100 200 300 500 1000 2000 5000"
-# number_of_global_interations="100 200 300 500"
+#number_of_global_interations="5000"
 
-thisK=5
+thisK=3
 
 outputFolder="../results"
 mkdir -p $outputFolder

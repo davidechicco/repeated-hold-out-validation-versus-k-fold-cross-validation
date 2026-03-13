@@ -203,7 +203,7 @@ for(a in seq(1:crossval_global_interations)) {
 
       if(VERBOSE) cat("#rows of this training set = ", nrow(train_data), " ", sep="")
       if(VERBOSE) cat("#rows of this test set = ", nrow(test_data), "\n", sep="")
-      cat("target mean ", mean(actuals),  " ± ", sd(actuals), " ", sep="")
+      if(VERBOSE) cat("target mean ", mean(actuals),  " ± ", sd(actuals), "\n", sep="")
 
       if(VERBOSE) cat(" mean diff with original = ")
       thisDiff <- abs(computeDiffPerc(mean(data[[response_var]]),mean(actuals)))
