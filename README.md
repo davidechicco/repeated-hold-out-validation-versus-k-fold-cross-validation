@@ -1,4 +1,4 @@
-# repeated hold-out-validation-versus-k-fold-cross-validation
+# Repeated hold-out validation versus k-fold cross validation
 
 Experiments to compare the results of repeated hold-out validation and the results of k-fold cross validation.
 
