@@ -22,39 +22,58 @@ cat(" =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  = 
 
 args <- commandArgs(trailingOnly = TRUE)  # get only the user-supplied arguments
 
-if (length(args) < 3) {
-  stop("Please provide three arguments")
+if (length(args) < 4) {
+  stop("Please provide four arguments")
 }
 
-rep_holdout_global_interations <- args[1]
+rep_holdout_global_interations <- as.numeric(args[1])
 dataset_name <- args[2]
 k <- as.numeric(args[3])
+type <- toString(args[4])
+
 
 cat("argument 1, rep_holdout_global_interations:", rep_holdout_global_interations, "\n")
 cat("argument 2, dataset:", dataset_name, "\n")
 cat("argument 3, k:", k, "\n")
+cat("argument 4, type:", type, "\n")
 
+BINARY_CLASS <- NULL
+REGRESSION <- NULL
+
+if(type=="binary") {
+  BINARY_CLASS <- TRUE
+  REGRESSION <- !(BINARY_CLASS)
+} else if(type=="regression") {
+  REGRESSION <- TRUE
+  BINARY_CLASS <- !(REGRESSION)
+}
 
 # Load the data
 if(dataset_name == "chronic_kidney_disease") {
   dataFile <- "../data/CKD_CVD_journal.pone.0199920.s002_EDITED_IMPUTED_v2.csv"
-  response_var <- "TimeToEventMonths"
+  if(REGRESSION) response_var <- "TimeToEventMonths"
+  if(BINARY_CLASS) response_var <- "EventCKD35"
 } else if(dataset_name == "sepsis") {
   dataFile <- "../data/sepsis_severity_dataset_col_norm_edited_target-SOFA-score.csv"
-  response_var <- "SOFA.score"  # Replace with your response variable name
+  if(REGRESSION) response_var <- "SOFA.score"  # Replace with your response variable name
+  if(BINARY_CLASS) response_var <- "cancer"
 } else if(dataset_name == "heart_failure") {
   dataFile <- "../data/EHRs_heart_failure_S1Data_EDITED_v3.csv"
-  response_var <- "TIME_DAYS"  # Replace with your response variable name
+  if(REGRESSION) response_var <- "TIME_DAYS"  # Replace with your response variable name
+  if(BINARY_CLASS) response_var <- "DEATH_EVENT"
 } else if(dataset_name == "obesity") {
   dataFile <- "../data/ObesityDataSet_raw_and_data_sinthetic_EDITED.csv"
-  response_var <- "obesity_class"  # Replace with your response variable name
+  if(REGRESSION) response_var <- "obesity_class"  # Replace with your response variable name
+  if(BINARY_CLASS) response_var <- "family_history_with_overweight"
 } else if(dataset_name == "diabetes_type_one") {
   dataFile <- "../data/journal.pone.0216416_Takashi2019_diabetes_type1_dataset_preprocessed.csv"
-  response_var <- "duration.of.diabetes"
+  if(REGRESSION) response_var <- "duration.of.diabetes"
+  if(BINARY_CLASS) response_var <- "insulin_regimen_binary"
 } else {
   cat("Error: the dataset chosen should be one among chronic_kidney_disease, sepsis, heart_failure, obesity, diabetes_type_one. The program stops here\n")
   quit(save = "no", status = 0)
 }
+
 
 data <- read.csv(dataFile, header=T)
 cat(dataFile,"\n")
@@ -66,15 +85,24 @@ data <- data[sample(nrow(data)), ]
 # data$SOFA.score <- as.factor(data$"SOFA.score")
 predictor_vars <- setdiff(names(data), response_var)
 
+cat("predictor_vars:\n")
+#cat("response_var: ", data[, c(response_var)], "\n", sep="")
+
+print((data[, c(response_var)] %>% table())*100/nrow(data))
+
+
 # Set parameters for repeated hold-out validation
-num_iterations <- 10
+num_iterations <- k
+cat("here p = k = ", k, "\n", sep="")
 
 train_fraction <- 1-(1/k)
 
 cat("training set = ", dec_five(100*train_fraction), "%\n", sep="")
 rep_holdout_target_differences_perc_means <- numeric(num_iterations)
 
-cat(num_iterations, "-times repeated hold-out validation\t Random Forests regression analysis\n", sep="")
+cat(num_iterations, "-times repeated hold-out validation\t ", sep="")
+if(BINARY_CLASS) cat(" binary classification\n")
+if(REGRESSION) cat(" regression analysis\n")
 
 cat("global target mean ", mean(data[[response_var]]),  " ± ", sd(data[[response_var]]), "\n", sep="")
 
@@ -85,6 +113,8 @@ rep_holdout_interp_mean_similarities_Kendall <- 0
 rep_holdout_interp_mean_similarities_Spearman <- 0
 
 cat("rep_holdout_global_interations = ", rep_holdout_global_interations, "\n", sep="")
+
+countTimesRepetedHoldoutBetterThanKfold <- 0
 
 for(a in seq(1:rep_holdout_global_interations)) {
 
@@ -116,52 +146,16 @@ for(a in seq(1:rep_holdout_global_interations)) {
       rep_holdout_dtw_similarity <- 1 / (1 + rep_holdout_dtw_alignment$"distance")  # Convert distance to similarity
       # DTW similarity (common transforms): values between 0 (very dissimilar) and 1 (identical)
 
-      # rep_holdout_interpolate y to length of x
-      y_rep_holdout_interp <- approx(x = seq_along(actuals), y = actuals, xout = seq(1, length(actuals), length.out = length(data[[response_var]])))$"y"
-
-      # Compute correlation
-      rep_holdout_interp_similarity_Pearson <- cor(data[[response_var]], y_rep_holdout_interp, method = "pearson")
-      rep_holdout_interp_similarity_Kendall <- cor(data[[response_var]], y_rep_holdout_interp, method = "kendall")
-      rep_holdout_interp_similarity_Spearman <- cor(data[[response_var]], y_rep_holdout_interp, method = "spearman")
-
-      rep_holdout_target_differences_perc_means[i] <- thisDiff
       rep_holdout_dtw_similarities[i] <- rep_holdout_dtw_similarity
-      rep_holdout_interp_similarities_Pearson[i] <- rep_holdout_interp_similarity_Pearson
-      rep_holdout_interp_similarities_Kendall[i] <- rep_holdout_interp_similarity_Kendall
-      rep_holdout_interp_similarities_Spearman[i] <- rep_holdout_interp_similarity_Spearman
-
     }
 
-    # Calculate average R-squared across all folds
-    # average_r_squared <- mean(r_squared_values)
-    # Print the average R-squared
-    # cat("Average R-squared V1 over", k, "folds:", average_r_squared, "\n")
-    # average_r_squared_V2 <- mean(r_squared_values_V2)
-    # cat("Average R-squared V2 over", k, "folds:", average_r_squared_V2, "\n")
-#     average_r_squared_V3 <- mean(r_squared_values_V3)
-#     sd_r_squared_V3 <- sd(r_squared_values_V3)
-#     if(VERBOSE) cat("Average R-squared V3 over ", num_iterations, " iterations: ", average_r_squared_V3, " ± ", sd_r_squared_V3, "  ", sep="")
-#     if(VERBOSE) cat(" in the [", dec_five(min(r_squared_values_V3)), ",", dec_five(max(r_squared_values_V3)), "] interval\n", sep="")
-
-    # cat("(a=", a, ") absolute average absolute percentage difference between iteration target and original target = ", dec_five(mean(rep_holdout_target_differences_perc_means)), "% ± ", dec_five(sd(rep_holdout_target_differences_perc_means)), "%\n", sep="")
-    # cat("(a=", a, ") mean DTW similarity between fold targets and global targets = ", dec_five(mean(rep_holdout_dtw_similarities)), " ± ", dec_five(sd(rep_holdout_dtw_similarities)), "\n", sep="")
-    # cat("(a=", a, ") mean rep_holdout_interpolation similarity between fold targets and global targets = ", dec_five(mean(rep_holdout_interp_similarities)), " ± ", dec_five(sd(rep_holdout_interp_similarities)), "\n", sep="")
-
-    rep_holdout_mean_differences_between_global_targets_and_fold_targets[a] <- mean(rep_holdout_target_differences_perc_means)
-    rep_holdout_dtw_mean_similarities[a] <- mean(rep_holdout_dtw_similarities)
-    rep_holdout_interp_mean_similarities_Pearson[a] <- mean(rep_holdout_interp_similarities_Pearson)
-    rep_holdout_interp_mean_similarities_Kendall[a] <- mean(rep_holdout_interp_similarities_Kendall)
-    rep_holdout_interp_mean_similarities_Spearman[a] <- mean(rep_holdout_interp_similarities_Spearman)
-
+        rep_holdout_dtw_mean_similarities[a] <- mean(rep_holdout_dtw_similarities)
 }
-cat("\n[mean] global absolute average absolute percentage difference between iteration target and original target = ", dec_five(mean(rep_holdout_mean_differences_between_global_targets_and_fold_targets)), "% ± ", dec_five(sd(rep_holdout_mean_differences_between_global_targets_and_fold_targets)), "% ↑↑↑\n", sep="")
-cat("[DTW] global DTW similarities between iteration target and original target = ", dec_five(mean(rep_holdout_dtw_mean_similarities)), " ± ", dec_five(sd(rep_holdout_dtw_mean_similarities)), " ↓↓↓\n", sep="")
-cat("[Pearson rep_holdout_interpolation] global rep_holdout_interpolated similarities between iteration target and original target = ", dec_five(mean(rep_holdout_interp_mean_similarities_Pearson)), " ± ", dec_five(sd(rep_holdout_interp_mean_similarities_Pearson)), " ↑↑↑\n", sep="")
-cat("[Kendal rep_holdout_interpolation] global rep_holdout_interpolated similarities between iteration target and original target = ", dec_five(mean(rep_holdout_interp_mean_similarities_Kendall)), " ± ", dec_five(sd(rep_holdout_interp_mean_similarities_Kendall)), " ↑↑↑\n", sep="")
-cat("[Spearman rep_holdout_interpolation] global rep_holdout_interpolated similarities between iteration target and original target = ", dec_five(mean(rep_holdout_interp_mean_similarities_Spearman)), " ± ", dec_five(sd(rep_holdout_interp_mean_similarities_Spearman)), " ↑↑↑\n", sep="")
 
-cat(num_iterations, "-times repeated hold-out validation\t Random Forests regression analysis\n", sep="")
-cat(" =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  = \n")
+cat("\n")
+cat("[DTW] global DTW similarities between iteration target and original target = ", dec_five(mean(rep_holdout_dtw_mean_similarities)), " ± ", dec_five(sd(rep_holdout_dtw_mean_similarities)), " ↑↑↑\n", sep="")
+cat(num_iterations, "-times repeated hold-out validation\t ", sep="")
+cat("\n =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  = \n")
 
 
 crossval_mean_differences_between_global_targets_and_fold_targets <- c()
@@ -185,7 +179,6 @@ for(a in seq(1:crossval_global_interations)) {
     # Set parameters for repeated hold-out validation
     train_fraction <- 1-1/k
     if(VERBOSE) cat("k = ", k,  " somehow like training set = ", dec_five(100*train_fraction), "%\n", sep="")
-
 
     crossval_target_differences_perc_means <- numeric(k)
 
@@ -213,88 +206,53 @@ for(a in seq(1:crossval_global_interations)) {
       crossval_dtw_similarity <- 1 / (1 + crossval_dtw_alignment$"distance")  # Convert distance to similarity
       # DTW similarity (common transforms): values between 0 (very dissimilar) and 1 (identical)
 
-      # crossval_interpolate y to length of x
-      y_crossval_interp <- approx(x = seq_along(actuals), y = actuals, xout = seq(1, length(actuals), length.out = length(data[[response_var]])))$"y"
+         crossval_dtw_similarities[i] <- crossval_dtw_similarity
+    }
 
-      # Compute correlation
-      crossval_interp_similarity_Pearson <- cor(data[[response_var]], y_crossval_interp, method = "pearson")
-      crossval_interp_similarity_Kendall <- cor(data[[response_var]], y_crossval_interp, method = "kendall")
-      crossval_interp_similarity_Spearman <- cor(data[[response_var]], y_crossval_interp, method = "spearman")
+    crossval_dtw_mean_similarities[a] <- mean(crossval_dtw_similarities)
 
+    if(VERBOSE) cat("\n[corresponding iteration DTW comparison] repeated holdout ", dec_five(rep_holdout_dtw_mean_similarities[a]), " > ", dec_five(crossval_dtw_mean_similarities[a]), " cross validation? ↑↑↑ ", sep="")
+    if(rep_holdout_dtw_mean_similarities[a] > crossval_dtw_mean_similarities[a]) {
 
-      crossval_target_differences_perc_means[i] <- thisDiff
-      crossval_dtw_similarities[i] <- crossval_dtw_similarity
-      crossval_interp_similarities_Pearson[i] <- crossval_interp_similarity_Pearson
-      crossval_interp_similarities_Kendall[i] <- crossval_interp_similarity_Kendall
-      crossval_interp_similarities_Spearman[i] <- crossval_interp_similarity_Spearman
+    if(VERBOSE)  cat("TRUE, repeated holdout wins ", green("\u2714"), " ", sep="")
+      countTimesRepetedHoldoutBetterThanKfold <- countTimesRepetedHoldoutBetterThanKfold + 1
 
-      # cat("r_squared = ", r_squared, "\t r_squared_V2 =  ", r_squared_V2, "\n", sep="")
+    } else {
+
+      if(VERBOSE) cat("FALSE, cross-validation wins ", red("\u2716"), " ", sep="")
 
     }
 
-    # Calculate average R-squared across all folds
-    # average_r_squared <- mean(r_squared_values)
-    # Print the average R-squared
-    # cat("Average R-squared V1 over", k, "folds:", average_r_squared, "\n")
-    # average_r_squared_V2 <- mean(r_squared_values_V2)
-    # cat("Average R-squared V2 over", k, "folds:", average_r_squared_V2, "\n")
-#     average_r_squared_V3 <- mean(r_squared_values_V3)
-#     sd_r_squared_V3 <- sd(r_squared_values_V3)
-#     if(VERBOSE) cat("Average R-squared V3 over ",  k, " folds: ", average_r_squared_V3, " ± ", sd_r_squared_V3, "  ", sep="")
-#     if(VERBOSE) cat(" in the [", dec_five(min(r_squared_values_V3)), ",", dec_five(max(r_squared_values_V3)), "] interval\n", sep="")
-
-    # cat("(a=", a, ") absolute average absolute percentage difference between iteration target and original target = ", dec_five(mean(crossval_target_differences_perc_means)), "% ± ", dec_five(sd(crossval_target_differences_perc_means)), "%\n", sep="")
-    # cat("(a=", a, ") mean DTW similarity between fold targets and global targets = ", dec_five(mean(crossval_dtw_similarities)), " ± ", dec_five(sd(crossval_dtw_similarities)), "\n", sep="")
-    # cat("(a=", a, ") mean crossval_interpolation similarity between fold targets and global targets = ", dec_five(mean(crossval_interp_similarities_Pearson)), " ± ", dec_five(sd(crossval_interp_similarities_Pearson)), "\n", sep="")
-
-    crossval_mean_differences_between_global_targets_and_fold_targets[a] <- mean(crossval_target_differences_perc_means)
-    crossval_dtw_mean_similarities[a] <- mean(crossval_dtw_similarities)
-    crossval_interp_mean_similarities_Pearson[a] <- mean(crossval_interp_similarities_Pearson)
-    crossval_interp_mean_similarities_Kendall[a] <- mean(crossval_interp_similarities_Kendall)
-    crossval_interp_mean_similarities_Spearman[a] <- mean(crossval_interp_similarities_Spearman)
+     if(VERBOSE) cat("diff = ", dec_two(computeDiffPerc(mean(rep_holdout_dtw_mean_similarities),crossval_dtw_mean_similarities[a])), "%", sep="")
 
 }
 
+cat("\n")
 
-cat("\n[mean] global absolute average absolute percentage difference between iteration target and original target = ", dec_five(mean(crossval_mean_differences_between_global_targets_and_fold_targets)), "% ± ", dec_five(sd(crossval_mean_differences_between_global_targets_and_fold_targets)), "% ↑↑↑\n", sep="")
-cat("[DTW] global DTW similarities between iteration target and original target = ", dec_five(mean(crossval_dtw_mean_similarities)), " ± ", dec_five(sd(crossval_dtw_mean_similarities)), " ↓↓↓\n", sep="")
-cat("[Pearson crossval interpolation] global crossval_interpolated similarities between iteration target and original target = ", dec_five(mean(crossval_interp_mean_similarities_Pearson)), " ± ", dec_five(sd(crossval_interp_mean_similarities_Pearson)), " ↑↑↑\n", sep="")
-cat("[Kendal crossval interpolation] global crossval_interpolated similarities between iteration target and original target = ", dec_five(mean(crossval_interp_mean_similarities_Kendall)), " ± ", dec_five(sd(crossval_interp_mean_similarities_Kendall)), " ↑↑↑\n", sep="")
-cat("[Spearman crossval interpolation] global crossval_interpolated similarities between iteration target and original target = ", dec_five(mean(crossval_interp_mean_similarities_Spearman)), " ± ", dec_five(sd(crossval_interp_mean_similarities_Spearman)), " ↑↑↑\n", sep="")
+cat("[DTW] global DTW similarities between iteration target and original target = ", dec_five(mean(crossval_dtw_mean_similarities)), " ± ", dec_five(sd(crossval_dtw_mean_similarities)), " ↑↑↑\n", sep="")
 
-cat(k, "-fold cross-validation\t Random Forests regression analysis\n", sep="")
+cat(k, "-fold cross-validation\t ", sep="")
+if(BINARY_CLASS) cat(" binary classification\n")
+if(REGRESSION) cat(" regression analysis\n")
 cat(" =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  =  = \n")
 
 
-cat("\n[mean of the means] repeated holdout ", dec_five(mean(rep_holdout_mean_differences_between_global_targets_and_fold_targets)), "% > ", dec_five(mean(crossval_mean_differences_between_global_targets_and_fold_targets)), "%  cross validation? ↑↑↑ ", sep="")
-if(mean(rep_holdout_mean_differences_between_global_targets_and_fold_targets) > mean(crossval_mean_differences_between_global_targets_and_fold_targets)) {
-  cat("TRUE, repeated holdout wins ", green("\u2714"), " ", sep="")
-} else cat("FALSE, cross-validation wins ", red("\u2716"), " ", sep="")
-cat("diff = ", dec_two(computeDiffPerc(mean(rep_holdout_mean_differences_between_global_targets_and_fold_targets),mean(crossval_mean_differences_between_global_targets_and_fold_targets))), "%", sep="")
+percTimesRepetedHoldoutBetterThanKfold <- (countTimesRepetedHoldoutBetterThanKfold * 100) / crossval_global_interations
+cat("\n[DTW] number of times repeated holdout was better than kfold: ", countTimesRepetedHoldoutBetterThanKfold, "/", crossval_global_interations,  " = ", dec_two(percTimesRepetedHoldoutBetterThanKfold),"% ", sep="")
 
-cat("\n[DTW comparison] repeated holdout ", dec_five(mean(rep_holdout_dtw_mean_similarities)), " < ", dec_five(mean(crossval_dtw_mean_similarities)), " cross validation? ↓↓↓ ", sep="")
+percMajorityTimes <- 50
+if(percTimesRepetedHoldoutBetterThanKfold > percMajorityTimes) {
+  cat("TRUE, repeated holdout wins in most of the times ", green("\u2714"), " ", sep="")
+} else {
+  cat("FALSE, cross-validation wins in most of the times ", red("\u2716"), " ", sep="")
+  }
+
+cat("\n")
+cat("[mean DTW comparison] repeated holdout ", dec_five(mean(rep_holdout_dtw_mean_similarities)), " > ", dec_five(mean(crossval_dtw_mean_similarities)), " cross validation? ↑↑↑ ", sep="")
 if(mean(rep_holdout_dtw_mean_similarities) > mean(crossval_dtw_mean_similarities)) {
   cat("TRUE, repeated holdout wins ", green("\u2714"), " ", sep="")
 } else cat("FALSE, cross-validation wins ", red("\u2716"), " ", sep="")
 cat("diff = ", dec_two(computeDiffPerc(mean(rep_holdout_dtw_mean_similarities),mean(crossval_dtw_mean_similarities))), "%", sep="")
-
-cat("\n[Pearson interpolation] repeated holdout ", dec_five(mean(rep_holdout_interp_mean_similarities_Pearson)), " > ", dec_five(mean(crossval_interp_mean_similarities_Pearson)), " cross validation? ↑↑↑ ", sep="")
-if(mean(rep_holdout_interp_mean_similarities_Pearson) > mean(crossval_interp_mean_similarities_Pearson)) {
-  cat("TRUE, repeated holdout wins ", green("\u2714"), " ", sep="")
-} else cat("FALSE, cross-validation wins ", red("\u2716"), " ", sep="")
-cat("diff = ", dec_two(computeDiffPerc(mean(rep_holdout_interp_mean_similarities_Pearson),mean(crossval_interp_mean_similarities_Pearson))), "%", sep="")
-
-cat("\n[Kendall interpolation] repeated holdout ", dec_five(mean(rep_holdout_interp_mean_similarities_Kendall)), " > ", dec_five(mean(crossval_interp_mean_similarities_Kendall)), " cross validation? ↑↑↑ ", sep="")
-if(mean(rep_holdout_interp_mean_similarities_Kendall) > mean(crossval_interp_mean_similarities_Kendall)) {
-  cat("TRUE, repeated holdout wins ", green("\u2714"), " ", sep="")
-} else cat("FALSE, cross-validation wins ", red("\u2716"), " ", sep="")
-cat("diff = ", dec_two(computeDiffPerc(mean(rep_holdout_interp_mean_similarities_Kendall),mean(crossval_interp_mean_similarities_Kendall))), "%", sep="")
-
-cat("\n[Spearman interpolation] repeated holdout ", dec_five(mean(rep_holdout_interp_mean_similarities_Spearman)), " > ", dec_five(mean(crossval_interp_mean_similarities_Spearman)), " cross validation? ↑↑↑ ", sep="")
-if(mean(rep_holdout_interp_mean_similarities_Spearman) > mean(crossval_interp_mean_similarities_Spearman)) {
-  cat("TRUE, repeated holdout wins ", green("\u2714"), " ", sep="")
-} else cat("FALSE, cross-validation wins ", red("\u2716"), " ", sep="")
-cat("diff = ", dec_two(computeDiffPerc(mean(rep_holdout_interp_mean_similarities_Spearman),mean(crossval_interp_mean_similarities_Spearman))), "%", sep="")
 
 cat("\n")
 cat("number of global interactions = ", rep_holdout_global_interations, "\n", sep="")
