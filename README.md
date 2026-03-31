@@ -66,7 +66,7 @@ The real datasets are derived from electronic health records and include:
   DOI: https://doi.org/10.1371/journal.pone.0175818
 
 
-## Code information and installation ##
+## Code information, installation, and requirements ##
 
 To run the tests here, you need to have the following programs and packages installed in your computer:
 
@@ -83,6 +83,11 @@ You can install them through these commands
 
     library("pacman")
     p_load("randomForest", "caret", "MLmetrics", "dtw", "crayon")
+
+## Methodology ##
+
+No preprocessing phase is needed on the raw data to run the scripts provided in this repository.
+The target features of the datasets used are numeric or ordinal, and not categories.
 
 ## Usage instructions ##
 
